@@ -5,6 +5,24 @@ const cors = require("cors")
 const Person = require("./models/person")
 const app = express()
 
+const unknownEndpoint = (req, res) => {
+    res.status(404).send({error: "unknown endpoint"})
+}
+
+app.use(unknownEndpoint)
+
+const errorHandler = (error, req, res, next) => {
+    console.error(error.message)
+
+    if(error.name === "CastError") {
+        return res.status(400).send({error: "malformatted id"})
+    } else if(error.name === "ValidationError") {
+        return res.status(400).json({error: error.message})
+    }
+
+    next(error)
+}
+
 app.use(express.json())
 
 morgan.token('body', req => JSON.stringify(req.body))
@@ -14,6 +32,8 @@ app.use(cors())
 
 app.use(express.static("dist"))
 
+app.use(errorHandler)
+
 app.get("/api/persons", (req, res, next) => {
     Person.find({}).then(result => {
         res.json(result)
@@ -21,13 +41,17 @@ app.get("/api/persons", (req, res, next) => {
 })
 
 app.get("/api/persons/:id", (req, res, next) => {
-    const id = Number(req.params.id)
-    const person = persons.find(person => person.id === id)
-    if(person) {
-        res.json(person)
-    } else {
-        res.status(404).end()
-    }
+    const id = req.params.id
+    Person.findById(id).then(result => {
+        if(result) {
+            res.json(result)
+        } else {
+            res.status(404).end()
+        }
+    }).catch(error => {
+        console.log(error)
+        res.status(400).send({error: "malformatted id"})
+    })
 })
 
 app.get("/info", (req, res, next) => {
